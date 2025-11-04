@@ -9,6 +9,8 @@
 #map-container {
   height: 100%;
   width: 100%;
+  /* ensure absolutely-positioned children (like FAB) are positioned relative to the map */
+  position: relative;
   /* temporarily set the background color so we can tell where the map container is positioned */
   background-color: lightgrey;
 }
@@ -34,4 +36,16 @@
   padding: 4px 10px;
   border-radius: 10px;
   cursor: pointer;
+}
+
+/* container for floating action buttons so they sit on top of the map */
+.fab-container {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1200; /* ensure it's above map layers */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
 }

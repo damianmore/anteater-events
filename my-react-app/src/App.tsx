@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import FloatingActionButtons from './components/FloatingActionButton'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './App.css'
@@ -33,11 +34,13 @@ function App() {
       }
     }
   }, [])
-  return (
-    <>
-      <div id='map-container' ref={mapContainerRef} />
-    </>
-  )
+    return (
+      <>
+        <div id='map-container' ref={mapContainerRef}>
+          <FloatingActionButtons></FloatingActionButtons>
+        </div>
+      </>
+    )
 }
 
 export default App
