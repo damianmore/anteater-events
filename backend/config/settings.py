@@ -4,7 +4,8 @@ from os import getenv
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(dotenv_path=BASE_DIR.parent / '.env')
+if Path(dotenv_path=BASE_DIR.parent / '.env').exists():
+    load_dotenv(dotenv_path=BASE_DIR.parent / '.env')
 
 
 SUPABASE_URL = getenv("SUPABASE_URL")
