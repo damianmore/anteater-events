@@ -12,7 +12,7 @@ SUPABASE_URL = getenv("SUPABASE_URL")
 SUPABASE_KEY = getenv("SUPABASE_KEY")
 CORS_ALLOW_ALL_ORIGINS = getenv("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "https://anteater-events-latest.onrender.com"]
 ALLOWED_HOSTS = getenv("ALLOWED_HOSTS", "").split(",") if getenv("ALLOWED_HOSTS") else []
 SECRET_KEY = getenv("DJANGO_SECRET_KEY")
 DEBUG = getenv("DJANGO_DEBUG", "True") == "True"
