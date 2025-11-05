@@ -7,20 +7,10 @@ from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from supabase import create_client, Client
+from app.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
-SUPABASE_URL = os.environ.get("supabase_url")
-SUPABASE_KEY = os.environ.get("supabase_key")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError(
-        "Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_KEY."
-    )
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 EVENTS_TABLE = "events"
 
@@ -124,11 +114,13 @@ def _normalize_event_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 @method_decorator(csrf_exempt, name="dispatch")
 class EventListView(View):
+    supabase = get_supabase_client()
+
     def get(self, request: HttpRequest) -> JsonResponse:
         categories_param = request.GET.get("categories")
         day_param = request.GET.get("day")
 
-        query = supabase.table(EVENTS_TABLE).select("*")
+        query = self.supabase.table(EVENTS_TABLE).select("*")
 
         now_iso = _now_utc_iso()
         query = query.gte("end_time", now_iso)
@@ -166,15 +158,18 @@ class EventListView(View):
         pass
 
 class EventDetailView(View):
-    def get(self, request: HttpRequest, event_id: str) -> HttpResponse:
+    supabase = get_supabase_client()
+    def get(self, request: HttpRequest, event_id: str) -> JsonResponse:
+        logger.info(event_id)
         try:
             resp = (
-                supabase.table(EVENTS_TABLE)
+                self.supabase.table(EVENTS_TABLE)
                 .select("*")
                 .eq("id", event_id)
                 .limit(1)
                 .execute()
             )
+            logger.info(resp)
             rows: List[Dict[str, Any]] = resp.data or []
             if not rows:
                 return JsonResponse({"error": "Event not found"}, status=404)
