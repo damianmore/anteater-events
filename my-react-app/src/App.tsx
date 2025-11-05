@@ -1,9 +1,12 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import FloatingActionButtons from './components/FloatingActionButton'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './App.css'
 import addGeoJSONMarkers from './components/marker';
+import CreateDetails, { type CreateFormData } from './components/create_details'
+import createMarker from './utils/createMarker'
+import waitForMapClick from './utils/waitForMapClick'
 
 const MAPBOX_KEY = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
@@ -13,6 +16,44 @@ function App() {
   //mapContainerRef hold the map container div
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [selectedLocation, setSelectedLocation] = useState<{ lng: number; lat: number } | null>(null)
+
+  // choose location first, then open the modal
+  const handleCreate = () => {
+    const map = mapRef.current
+    if (!map) {
+      //opening modal without location if map not ready
+      setSelectedLocation(null)
+      setIsCreateOpen(true)
+      return
+    }
+    // wait for a single map click
+    waitForMapClick(map).then(({ lng, lat }) => {
+      setSelectedLocation({ lng, lat })
+      setIsCreateOpen(true)
+    })
+  }
+
+  // called when the modal form is submitted
+  const handleCreateSubmit = (data: CreateFormData) => {
+    setIsCreateOpen(false)
+    const loc = selectedLocation
+    if (!loc) {
+      console.warn('No location selected — cannot place marker')
+      return
+    }
+
+    const map = mapRef.current
+    if (!map) return
+
+    // delegate marker creation to utility
+    createMarker(map, loc.lng, loc.lat, data)
+
+    // clear selected location
+    setSelectedLocation(null)
+  }
+  
   //Create map when component mounts
   useEffect(() => {
     if (MAPBOX_KEY) {
@@ -46,8 +87,9 @@ function App() {
     return (
       <>
         <div id='map-container' ref={mapContainerRef}>
-          <FloatingActionButtons></FloatingActionButtons>
+          <FloatingActionButtons onCreate={handleCreate}></FloatingActionButtons>
         </div>
+        <CreateDetails open={isCreateOpen} onClose={() => setIsCreateOpen(false)} onSubmit={handleCreateSubmit} />
       </>
     )
 }
