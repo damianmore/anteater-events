@@ -14,11 +14,9 @@ type Props = {
   open: boolean
   onClose: () => void
   onSubmit: (data: CreateFormData) => void
-  initialLng?: number
-  initialLat?: number
 }
 
-export default function CreateDetails({ open, onClose, onSubmit, initialLng, initialLat }: Props) {
+export default function CreateDetails({ open, onClose, onSubmit }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [day, setDay] = useState('')
@@ -47,11 +45,6 @@ export default function CreateDetails({ open, onClose, onSubmit, initialLng, ini
       <div className="create-modal">
         <form onSubmit={handleSubmit} className='form'>
           <div className="title">Create Event</div>
-          {typeof initialLng === 'number' && typeof initialLat === 'number' && (
-            <div style={{ color: '#bbb', fontSize: 13, marginBottom: 8 }}>
-              Location: {initialLat.toFixed(6)}, {initialLng.toFixed(6)}
-            </div>
-          )}
             <div className="input-container ic1">
             <input
               id="title"

@@ -5,8 +5,8 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import './App.css'
 import addGeoJSONMarkers from './components/marker';
 import CreateDetails, { type CreateFormData } from './components/create_details'
-import RoomTwoToneIcon from '@mui/icons-material/RoomTwoTone';
-import { renderToStaticMarkup } from 'react-dom/server';
+import createMarker from './utils/createMarker'
+import waitForMapClick from './utils/waitForMapClick'
 
 const MAPBOX_KEY = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
@@ -19,30 +19,18 @@ function App() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<{ lng: number; lat: number } | null>(null)
 
-  const escapeHtml = (str: string) => String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-
   // choose location first, then open the modal
   const handleCreate = () => {
     const map = mapRef.current
     if (!map) {
-      // fallback: open modal with no location
+      //opening modal without location if map not ready
       setSelectedLocation(null)
       setIsCreateOpen(true)
       return
     }
-
-    const canvas = map.getCanvas()
-    const prevCursor = canvas.style.cursor
-    canvas.style.cursor = 'crosshair'
-    map.once('click', (e) => {
-      canvas.style.cursor = prevCursor || ''
-      const lngLat = e.lngLat
-      setSelectedLocation({ lng: lngLat.lng, lat: lngLat.lat })
+    // wait for a single map click
+    waitForMapClick(map).then(({ lng, lat }) => {
+      setSelectedLocation({ lng, lat })
       setIsCreateOpen(true)
     })
   }
@@ -59,33 +47,8 @@ function App() {
     const map = mapRef.current
     if (!map) return
 
-    const el = document.createElement('div')
-    el.className = 'custom-marker'
-    try {
-      const svg = renderToStaticMarkup(<RoomTwoToneIcon />)
-      el.innerHTML = svg
-    } catch (err) {
-      console.warn('icon render failed', err)
-    }
-
-    const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-      .setLngLat([loc.lng, loc.lat])
-      .addTo(map)
-
-    if (data.title) el.title = data.title
-
-    if (data.title || data.description) {
-      const popupHtml = `
-        <strong>${escapeHtml(data.title)}</strong>
-        <div>${escapeHtml(data.description)}</div>
-        <strong>Day:</strong>
-        <div>${escapeHtml(data.day)}</div>
-        <strong>Time:</strong>
-        <div>${escapeHtml(data.start_time)}${data.start_time && data.end_time ? ' - ' + escapeHtml(data.end_time) : ''}</div>
-        <div>Categories: ${escapeHtml(data.categories.join(', '))}</div>
-      `
-      marker.setPopup(new mapboxgl.Popup({ offset: 8 }).setHTML(popupHtml))
-    }
+    // delegate marker creation to utility
+    createMarker(map, loc.lng, loc.lat, data)
 
     // clear selected location
     setSelectedLocation(null)
