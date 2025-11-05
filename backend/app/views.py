@@ -92,30 +92,32 @@ class EventListView(View):
     supabase = get_supabase_client()
 
     def get(self, request: HttpRequest) -> JsonResponse:
-        raw_cats = request.GET.getlist("categories") or ["all"]
-        cats = _to_list(raw_cats)
+        logger.info(request.GET)
+        categories_param = request.GET.getlist("categories")
+        day_param = request.GET.get("day")
+        logger.info(f"Fetching events with categories={categories_param} and day={day_param}")
+        if day_param == "" or day_param is None:
+            return JsonResponse({"error": "Missing required 'day' query parameter"}, status=400)
+        elif len(categories_param) == 0 or categories_param[0] == "":
+            return JsonResponse({"error": "Missing required 'categories' query parameter"}, status=400)
 
-        day = request.GET.get("day")
-        q = self.supabase.table("events").select("*")
-
-        if day:
-            q = q.eq("day", day)
+        if categories_param[0] != 'all':
+            resp = (
+                self.supabase.table("events")
+                .select("*")
+                .eq("day", day_param)
+                .overlaps("categories", categories_param)
+                .execute()
+            )
         else:
-            today = datetime.now(timezone.utc).date()
-            to_day = (today + timedelta(days=7))
-            q = q.gte("day", today.isoformat()).lte("day", to_day.isoformat())
+            resp = (
+                self.supabase.table("events")
+                .select("*") 
+                .eq("day", day_param)
+                .execute()
+            )
+        return JsonResponse({"events":resp.data}, status=200)
 
-        if cats and not (len(cats) == 1 and cats[0].lower() == "all"):
-            q = q.overlaps("categories", cats)
-
-        q = q.order("day").order("start_time")
-
-        try:
-            resp = q.execute()
-        except Exception as e:
-            return JsonResponse({"error": f"Query failed: {str(e)}"}, status=400)
-
-        return JsonResponse({"events": resp.data or []}, status=200)
 
     def post(self, request: HttpRequest) -> JsonResponse:
         try:
