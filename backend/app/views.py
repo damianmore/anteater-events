@@ -11,6 +11,7 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
 from .supabase_client import get_supabase_client
+from .gemini_client import get_gemini_client
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -185,3 +186,61 @@ class EventSearchView(View):
             logger.exception("Search failed")
             return JsonResponse({"error": str(e)}, status=500)
 #http://127.0.0.1:8000/events/search/?day=2025-11-05&search=icssc%20hackathon
+
+class EventAIView(View):
+    supabase = get_supabase_client()
+    gemini = get_gemini_client()
+
+    def get(self, request: HttpRequest) -> JsonResponse:
+        day_param = request.GET.get("day")
+        query_param = request.GET.get("search", "").strip()
+
+        if not query_param:
+            return JsonResponse({"error": "Missing required 'search' parameter"}, status=400)
+
+        logger.info(f"Searching events on day={day_param} with query='{query_param}'")
+
+        try:
+            resp = self.supabase.table(EVENTS_TABLE).select("*").execute()
+            events = resp.data or []
+
+            if not events:
+                return JsonResponse({"events": []}, status=200)
+
+            events_summary = [
+                {"id": e.get("id"), "title": e.get("title", ""), "description": e.get("description", "")}
+                for e in events
+            ]
+
+            prompt = f"""
+            You are helping filter events based on a user's search query.
+
+            User search query: "{query_param}"
+
+            Here are the available events:
+            {json.dumps(events_summary, indent=2)}
+
+            Return a JSON list of the *ids* of events that best match the user's search intent.
+            If none match, return an empty list [].
+            """
+
+            gemini_response = self.gemini.models.generate_content(
+                model="gemini-flash-lite-latest",
+                contents=prompt
+            )
+
+            try:
+                filtered_ids = json.loads(gemini_response.text)
+                if not isinstance(filtered_ids, list):
+                    filtered_ids = []
+            except Exception:
+                logger.warning("Gemini returned unparseable response.")
+                filtered_ids = []
+
+            filtered_events = [e for e in events if e.get("id") in filtered_ids]
+
+            return JsonResponse({"events": filtered_events}, status=200)
+
+        except Exception as e:
+            logger.exception("AI search failed")
+            return JsonResponse({"error": str(e)}, status=500)
