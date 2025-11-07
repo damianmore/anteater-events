@@ -11,8 +11,19 @@ import axios from 'axios';
 import BasicDatePicker from './date_picker';
 import dayjs, { Dayjs } from 'dayjs';
 
+// Minimal event type used for client-side filtering
+type EventItem = {
+  title?: string
+  description?: string
+  categories?: string[] | string | null
+  longitude?: number | string
+  latitude?: number | string
+  [k: string]: unknown
+}
+
 const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '').replace(/\/+$/, '');
 
+/** Styles */
 const Search = styled('div')(({ theme }) => ({
   position: 'relative',
   borderRadius: theme.shape.borderRadius,
@@ -55,6 +66,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
+// Send search query and date to backend, return matching events
 async function sendDataFromSearchBar(query: string | null, date?: Dayjs | null) {
   const q = String(query ?? '').trim();
   console.log('Search query to send:', q);
@@ -71,47 +83,95 @@ async function sendDataFromSearchBar(query: string | null, date?: Dayjs | null) 
     console.log('Events for day response data:', resp.data);
 
     const events = resp.data?.events || [];
-
     if (!q) {
-      // No searchiing => return all events
+      // No searching => return all events
       return events;
     }
-    
-    const normalized = (s: string) => s.toLowerCase().replace(/\s+/g,' ').trim();
-    const needle = normalized(q);
 
-    const matches = events.filter((event: any) => {
-      const title = normalized(String(event.title || ''));
-      const desc  = normalized(String(event.description || ''));
-      return title.includes(needle) || desc.includes(needle);
+    // make sure the input strings is in consistent lower case format without any signs
+    const normalized = (s: string) => s.toLowerCase().replace(/\s+/g,' ').trim();
+
+    // to support multiple categories: separated by ,
+    const tokens = q.includes(',')
+      ? q.split(',').map(t => normalized(t)).filter(Boolean)
+      : [normalized(q)]
+    if (tokens.length === 0) return events
+    console.log('Category search tokens:', tokens)
+
+    const matches = events.filter((event: EventItem) => {
+      // Normalize categories to a single searchable string and match tokens (OR)
+      let catsText = ''
+      const c = event.categories
+      if (Array.isArray(c)) {
+        catsText = c.map(x => String(x || '')).join(' ')
+      } else if (typeof c === 'string') {
+        catsText = c
+      }
+      const catsNorm = normalized(catsText)
+      if (!catsNorm) return false
+      return tokens.some(t => catsNorm.includes(t))
     });
 
     console.log('Search matches:', matches);
     return matches;
+
   } catch (err) {
     console.error('Search request failed', err);
     return null;
   }
 }
 
-function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, selectedDate?: Dayjs | null) {
+// Extract categories from search query 
+function extractCategoriesFromQuery(q: string): string[] | null {
+  if (!q) return null
+  const m = q.match(/(?:cat|category):\s*([^\s#]+)/i)
+  if (m && m[1]) {
+    return m[1].split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  }
+  const tags = Array.from(q.matchAll(/#([^\s#]+)/g)).map(a => String(a[1]).toLowerCase())
+  if (tags.length) return tags
+  return null
+}
+
+async function handleSearchKey(
+  e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  selectedDate?: Dayjs | null,
+  onCategoriesFound?: (cats: string[]) => void,
+  onSearchResults?: (results: Array<Record<string, unknown>> | null) => void
+) {
   if (e.key === 'Enter') {
     const target = e.target as HTMLInputElement | HTMLTextAreaElement;
     const value = target.value;
-    console.log('Search query submitted:', value, 'date:', selectedDate?.toString());
-    sendDataFromSearchBar(value, selectedDate);
+    console.log('Search query submitted:', value, '| date:', selectedDate?.toString());
+
+    try {
+      const tokenMatch = extractCategoriesFromQuery(value)
+      if (tokenMatch && typeof onCategoriesFound === 'function') {
+        try { onCategoriesFound(tokenMatch) } catch (err) { console.warn('onCategoriesFound failed', err) }
+      }
+    } catch (e) {
+      console.warn('Category token extraction failed', e)
+    }
+
+    const results = await sendDataFromSearchBar(value, selectedDate);
+    if (typeof onSearchResults === 'function') {
+      try { onSearchResults(results) } catch (err) { console.warn('onSearchResults handler failed', err) }
+    }
   }
 }
 
 
 type Props = {
   onDateChange?: (d: Dayjs) => void
+  onCategoriesFound?: (cats: string[]) => void
+  onSearchResults?: (results: Array<Record<string, unknown>> | null) => void
 }
 
-export default function SearchBar({ onDateChange }: Props) {
+
+export default function SearchBar({ onDateChange, onCategoriesFound, onSearchResults }: Props) {
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(dayjs());
 
-  // Avoid notifying parent on initial mount — only notify when user actually changes the date
+  // Avoid 
   const didMountRef = React.useRef(false)
   useEffect(() => {
     if (!didMountRef.current) {
@@ -144,7 +204,7 @@ export default function SearchBar({ onDateChange }: Props) {
             <StyledInputBase
                 placeholder="Search..."
                     inputProps={{ 'aria-label': 'search' }}
-                    onKeyDown={(e) => handleSearchKey(e, selectedDate)}
+                    onKeyDown={(e) => { void handleSearchKey(e, selectedDate, onCategoriesFound, onSearchResults) }}
             />
           </Search>
         </Toolbar>

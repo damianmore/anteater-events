@@ -26,7 +26,7 @@ function App() {
 
   // Filters
   const [day, setDay] = useState<string>(() => new Date().toISOString().slice(0, 10))
-  const [categories] = useState<string[] | 'all'>('all')
+  const [categories, setCategories] = useState<string[] | 'all'>('all')
 
   // Create modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -38,11 +38,13 @@ function App() {
   const listEndpoint = apiBase ? `${apiBase}/events/` : '/events/'
   const postEndpoint = listEndpoint
 
+  //Clear all the markers from the database
   function clearDbMarkers() {
     for (const m of dbMarkersRef.current) m.remove()
     dbMarkersRef.current = []
   }
 
+  // Fit the map view to the given markers
   function fitMapToMarkers(markers: mapboxgl.Marker[]) {
     const map = mapRef.current
     if (!map || markers.length === 0) return
@@ -55,6 +57,7 @@ function App() {
     map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 500 })
   }
 
+  // Load events 
   async function loadEvents(d: string, cats: string[] | 'all', { fit = true, keepExistingOnEmpty = false }: { fit?: boolean, keepExistingOnEmpty?: boolean } = {}) {
     const map = mapRef.current
     if (!map) return
@@ -100,7 +103,7 @@ function App() {
         title: r.title,
         description: r.description,
         day: r.day,
-        start_time: r.start_time, // server stores timetz; our popup will show the string
+        start_time: r.start_time, 
         end_time: r.end_time,
         categories: Array.isArray(r.categories) ? r.categories : [],
       })
@@ -110,6 +113,7 @@ function App() {
     if (fit) fitMapToMarkers(dbMarkersRef.current)
   }
 
+  // Load events for the Current Day
   async function loadUpcoming() {
     const map = mapRef.current
     if (!map) return
@@ -154,6 +158,7 @@ function App() {
     })
   }
 
+  //Handle create form submission
   const handleCreateSubmit = async (data: CreateFormData) => {
     setIsCreateOpen(false)
     const loc = selectedLocation
@@ -200,6 +205,7 @@ function App() {
       return dt.toISOString()
     }
 
+    //Format day to YYYY-MM-DD
     const Format_day = (s: string) => {
       const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
       if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
@@ -253,8 +259,8 @@ function App() {
     try {
       console.log('Creating event with payload:', payload)
       const resp = await axios.post(postEndpoint, payload, { headers: { 'Content-Type': 'application/json' } })
-  console.log('POST response status:', resp.status, 'data:', resp.data)
-  setSnackbar({ open: true, message: 'Event saved', severity: 'success' })
+      console.log('POST response status:', resp.status, 'data:', resp.data)
+      setSnackbar({ open: true, message: 'Event saved', severity: 'success' })
       const respData = resp.data || {}
 
       // For instant feedback, draw the returned feature if present
@@ -337,17 +343,47 @@ function App() {
       map.remove()
       mapRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
     <>
-      <SearchBar onDateChange={(d) => {
-        const isoDay = d.format ? d.format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
-        setDay(isoDay)
+      <SearchBar
+        onDateChange={(d) => {
+          const isoDay = d.format ? d.format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
+          setDay(isoDay)
           // reload events for the selected day; when user changes date we want to show only that day's events
           loadEvents(isoDay, categories, { fit: true, keepExistingOnEmpty: false })
-      }} />
+        }}
+        onCategoriesFound={(cats) => {
+          const newCats: string[] | 'all' = (cats && cats.length) ? cats : 'all'
+          console.log('App received categories from SearchBar:', newCats)
+          setCategories(newCats)
+          // reload events for current day using the new categories
+          loadEvents(day, newCats, { fit: true, keepExistingOnEmpty: false })
+        }}
+        onSearchResults={(results) => {
+          const map = mapRef.current
+          if (!map) return
+          // clear current DB markers and draw only the search results
+          clearDbMarkers()
+          if (!results || results.length === 0) return
+          for (const r of results as any[]) {
+            const lng = Number(r.longitude)
+            const lat = Number(r.latitude)
+            if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue
+            const mk = createMarker(map, lng, lat, {
+              title: r.title,
+              description: r.description,
+              day: r.day,
+              start_time: r.start_time,
+              end_time: r.end_time,
+              categories: Array.isArray(r.categories) ? r.categories : [],
+            })
+            dbMarkersRef.current.push(mk)
+          }
+          fitMapToMarkers(dbMarkersRef.current)
+        }}
+      />
       <div id="map-container" ref={mapContainerRef}>
         <FloatingActionButtons onCreate={handleCreate} />
       </div>
