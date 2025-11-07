@@ -9,11 +9,8 @@ import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Tooltip as ReactTooltip } from 'react-tooltip'
-import Chip from '@mui/material/Chip';
-import Stack from '@mui/material/Stack';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -192,7 +189,6 @@ export default function SearchBar({ value, onDateChange, onCategoriesFound, onSe
   const currentDate: Dayjs = (typeof value === 'undefined' || value === null) ? dayjs() : value
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [searching, setSearching] = useState(false);
-  const [helpAnchor, setHelpAnchor] = useState<HTMLElement | null>(null);
 
   // responsive/mobile date-picker support
   const theme = useTheme();
