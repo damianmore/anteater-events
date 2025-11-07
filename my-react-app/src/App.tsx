@@ -26,6 +26,7 @@ function App() {
 
   // Filters
   const [day, setDay] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [categories, setCategories] = useState<string[] | 'all'>('all')
 
   // Create modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -283,8 +284,9 @@ function App() {
 
       
       const reloadDay = (respData && respData.feature && respData.feature.properties && respData.feature.properties.day) || data.day || day
-  console.log('Reloading events for day:', reloadDay)
-  await loadEvents(reloadDay, 'all', { fit: true })
+      console.log('Reloading events for day:', reloadDay)
+      await loadEvents(reloadDay, categories, { fit: true })
+
       
     } catch (err) {
       console.error('Failed to POST event, falling back to local marker', err)
@@ -295,11 +297,12 @@ function App() {
       } else {
         setSnackbar({ open: true, message: 'Failed to save event', severity: 'error' })
       }
-  createMarker(map, loc.lng, loc.lat, data)
-  // Still refresh list so we remain consistent
-  await loadEvents(data.day || day, 'all', { fit: true })
+      createMarker(map, loc.lng, loc.lat, data)
+      // Still refresh list so we remain consistent
+      await loadEvents(data.day || day, categories, { fit: true })
     } finally {
       setSelectedLocation(null)
+      
     }
   }
 
@@ -322,7 +325,7 @@ function App() {
 
     map.on('load', async () => {
       // initial load: keep demo markers if server returns none
-      await loadEvents(day, 'all', { fit: true, keepExistingOnEmpty: true })
+      await loadEvents(day, categories, { fit: true, keepExistingOnEmpty: true })
       await loadUpcoming()
 
       try {
@@ -351,9 +354,15 @@ function App() {
           const isoDay = d.format ? d.format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
           setDay(isoDay)
           // reload events for the selected day; when user changes date we want to show only that day's events
-          loadEvents(isoDay, 'all', { fit: true, keepExistingOnEmpty: false })
+          loadEvents(isoDay, categories, { fit: true, keepExistingOnEmpty: false })
         }}
-        
+        onCategoriesFound={(cats) => {
+          const newCats: string[] | 'all' = (cats && cats.length) ? cats : 'all'
+          console.log('App received categories from SearchBar:', newCats)
+          setCategories(newCats)
+          // reload events for current day using the new categories
+          loadEvents(day, newCats, { fit: true, keepExistingOnEmpty: false })
+        }}
         onSearchResults={(results) => {
           const map = mapRef.current
           if (!map) return
@@ -390,7 +399,7 @@ function App() {
         autoHideDuration={4000}
         onClose={(_e?: unknown, reason?: string) => { if (reason === 'clickaway') return; setSnackbar(s => ({ ...s, open: false })) }}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{ zIndex: 2000 }}
+        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1300 }}
       >
         <Alert onClose={() => setSnackbar(s => ({ ...s, open: false }))} severity={snackbar.severity || 'info'} sx={{ width: '100%' }}>
           {snackbar.message}

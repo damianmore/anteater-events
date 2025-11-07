@@ -36,12 +36,31 @@ export default function CreateDetails({ open, onClose, onSubmit }: Props) {
       end_time: endTime,
       categories: categories.split(',').map(s => s.trim()).filter(Boolean),
     })
+    
+    // Clear fields after submissions
+    setTitle('')
+    setDescription('')
+    setDay('')
+    setStartTime('')
+    setEndTime('')
+    setCategories('')
+    onClose()
+  }
+
+  function handleCloseAndReset() {
+    // Clear form fields when the modal is closed
+    setTitle('')
+    setDescription('')
+    setDay('')
+    setStartTime('')
+    setEndTime('')
+    setCategories('')
     onClose()
   }
 
   return (
     <div className='create-modal-root'>
-      <div className="create-modal-backdrop" onClick={onClose} />
+  <div className="create-modal-backdrop" onClick={handleCloseAndReset} />
       <div className="create-modal">
         <form onSubmit={handleSubmit} className='form'>
           <div className="title">Create Event</div>
