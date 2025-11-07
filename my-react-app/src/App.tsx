@@ -55,7 +55,7 @@ function App() {
     map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 500 })
   }
 
-  async function loadEvents(d: string, cats: string[] | 'all', { fit = true }: { fit?: boolean } = {}) {
+  async function loadEvents(d: string, cats: string[] | 'all', { fit = true, keepExistingOnEmpty = false }: { fit?: boolean, keepExistingOnEmpty?: boolean } = {}) {
     const map = mapRef.current
     if (!map) return
 
@@ -79,13 +79,17 @@ function App() {
     const json = await res.json() as { events?: any[] }
     console.log('loadEvents response count', (json.events || []).length)
 
-    // If the server returned no events for this day, keep any existing markers
+    // If the server returned no events for this day, optionally keep existing markers
     if (!json.events || (Array.isArray(json.events) && json.events.length === 0)) {
-      console.log('loadEvents: no events returned, keeping existing markers')
+      if (keepExistingOnEmpty) {
+        console.log('loadEvents: no events returned, keeping existing markers')
+        return
+      }
+      // clear markers if there are no events for this day
+      console.log('loadEvents: no events returned, clearing existing markers')
+      clearDbMarkers()
       return
     }
-
-    clearDbMarkers()
 
     for (const r of json.events || []) {
       const lng = Number(r.longitude)
@@ -305,7 +309,8 @@ function App() {
     mapRef.current = map
 
     map.on('load', async () => {
-      await loadEvents(day, categories, { fit: true })
+      // initial load: keep demo markers if server returns none
+      await loadEvents(day, categories, { fit: true, keepExistingOnEmpty: true })
       await loadUpcoming()
 
       try {
@@ -333,8 +338,8 @@ function App() {
       <SearchBar onDateChange={(d) => {
         const isoDay = d.format ? d.format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
         setDay(isoDay)
-        // reload events for the selected day
-        loadEvents(isoDay, categories, { fit: true })
+          // reload events for the selected day; when user changes date we want to show only that day's events
+          loadEvents(isoDay, categories, { fit: true, keepExistingOnEmpty: false })
       }} />
       <div id="map-container" ref={mapContainerRef}>
         <FloatingActionButtons onCreate={handleCreate} />
