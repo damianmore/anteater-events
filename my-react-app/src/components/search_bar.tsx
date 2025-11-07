@@ -1,4 +1,4 @@
-import React, { useState, useEffect} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { styled, alpha } from '@mui/material/styles';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
@@ -7,19 +7,13 @@ import Typography from '@mui/material/Typography';
 import InputBase from '@mui/material/InputBase';
 // removed unused IconButton/MenuIcon imports
 import SearchIcon from '@mui/icons-material/Search';
+import { RiGeminiFill } from 'react-icons/ri';
 import axios from 'axios';
+import CircularProgress from '@mui/material/CircularProgress';
 import BasicDatePicker from './date_picker';
 import dayjs, { Dayjs } from 'dayjs';
 
-// Minimal event type used for client-side filtering
-type EventItem = {
-  title?: string
-  description?: string
-  categories?: string[] | string | null
-  longitude?: number | string
-  latitude?: number | string
-  [k: string]: unknown
-}
+// (removed unused EventItem type)
 
 const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '').replace(/\/+$/, '');
 
@@ -49,6 +43,20 @@ const SearchIconWrapper = styled('div')(({ theme }) => ({
   justifyContent: 'center',
 }));
 
+const RightIconWrapper = styled('div')(({ theme }) => ({
+  padding: theme.spacing(0, 2),
+  height: '100%',
+  position: 'absolute',
+  right: 0,
+  top: 0,
+  pointerEvents: 'auto',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: theme.palette.common.white,
+}));
+
 const StyledInputBase = styled(InputBase)(({ theme }) => ({
   color: 'inherit',
   width: '100%',
@@ -56,6 +64,8 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
     padding: theme.spacing(1, 1, 1, 0),
     // vertical padding + font size from searchIcon
     paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+    // reserve space on the right for the Gemini icon
+    paddingRight: `calc(1em + ${theme.spacing(4)})`,
     transition: theme.transitions.create('width'),
     [theme.breakpoints.up('sm')]: {
       width: '12ch',
@@ -67,54 +77,50 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 }));
 
 // Send search query and date to backend, return matching events
-async function sendDataFromSearchBar(query: string | null, date?: Dayjs | null) {
+async function sendDataFromSearchBar(query: string | null, date?: Dayjs | null, useAi = false) {
   const q = String(query ?? '').trim();
   console.log('Search query to send:', q);
 
   const d = date ?? dayjs();
   const formatted_date = `${d.year()}-${(d.month() + 1).toString().padStart(2, '0')}-${d.date().toString().padStart(2, '0')}`;
 
-  const base = (API_BASE || '').replace(/\/+$/,'');
+  const base = (API_BASE || '').replace(/\/+$|$/, '');
   const url = `${base}/events/`;
 
   try {
-    // Request all events for the day from the backend using the format you requested
-    const resp = await axios.get(url, { params: { day: formatted_date, categories: 'all' }, timeout: 8000 });
-    console.log('Events for day response data:', resp.data);
+    if (q) {
+      // if input starts with #, then category search is triggered and search for categories match
+      if (q.startsWith('#')) {
+        const cats = extractCategoriesFromQuery(q);
+        const categoriesParam = cats && cats.length ? cats.join(',') : 'all';
+        console.log('Calling category-based events endpoint', { day: formatted_date, categories: categoriesParam });
+        const resp = await axios.get(url, { params: { day: formatted_date, categories: categoriesParam }, timeout: 10000 });
+        console.log('Category search response data:', resp.data);
+        const evs = resp.data?.events ?? resp.data ?? [];
+        return evs;
+      }
 
-    const events = resp.data?.events || [];
-    if (!q) {
-      // No searching => return all events
-      return events;
+      let fullUrl = '';
+      if (useAi) {
+        const aiUrl = `${base}/events/aisearch/`;
+        fullUrl = `${aiUrl}?day=${encodeURIComponent(formatted_date)}&search=${encodeURIComponent(q)}`;
+        console.log('Calling AI search endpoint', fullUrl);
+      } else {
+        const searchUrl = `${base}/events/search/`;
+        fullUrl = `${searchUrl}?day=${encodeURIComponent(formatted_date)}&search=${encodeURIComponent(q)}`;
+        console.log('Calling standard search endpoint', fullUrl);
+      }
+
+      const resp = await axios.get(fullUrl, { timeout: 10000 });
+      console.log('Search response data:', resp.data);
+      const evs = resp.data?.events ?? resp.data ?? [];
+      return evs;
     }
 
-    // make sure the input strings is in consistent lower case format without any signs
-    const normalized = (s: string) => s.toLowerCase().replace(/\s+/g,' ').trim();
-
-    // to support multiple categories: separated by ,
-    const tokens = q.includes(',')
-      ? q.split(',').map(t => normalized(t)).filter(Boolean)
-      : [normalized(q)]
-    if (tokens.length === 0) return events
-    console.log('Category search tokens:', tokens)
-
-    const matches = events.filter((event: EventItem) => {
-      // Normalize categories to a single searchable string and match tokens (OR)
-      let catsText = ''
-      const c = event.categories
-      if (Array.isArray(c)) {
-        catsText = c.map(x => String(x || '')).join(' ')
-      } else if (typeof c === 'string') {
-        catsText = c
-      }
-      const catsNorm = normalized(catsText)
-      if (!catsNorm) return false
-      return tokens.some(t => catsNorm.includes(t))
-    });
-
-    console.log('Search matches:', matches);
-    return matches;
-
+    const resp = await axios.get(url, { params: { day: formatted_date, categories: 'all' }, timeout: 8000 });
+    console.log('Events for day response data:', resp.data);
+    const events = resp.data?.events || [];
+    return events;
   } catch (err) {
     console.error('Search request failed', err);
     return null;
@@ -137,26 +143,26 @@ async function handleSearchKey(
   e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   selectedDate?: Dayjs | null,
   onCategoriesFound?: (cats: string[]) => void,
-  onSearchResults?: (results: Array<Record<string, unknown>> | null) => void
+  onSearchResults?: (results: Array<Record<string, unknown>> | null) => void,
 ) {
-  if (e.key === 'Enter') {
-    const target = e.target as HTMLInputElement | HTMLTextAreaElement;
-    const value = target.value;
-    console.log('Search query submitted:', value, '| date:', selectedDate?.toString());
+  if (e.key !== 'Enter') return;
+  const target = e.target as HTMLInputElement | HTMLTextAreaElement;
+  const value = target.value;
+  console.log('Search query submitted:', value, '| date:', selectedDate?.toString());
 
-    try {
-      const tokenMatch = extractCategoriesFromQuery(value)
-      if (tokenMatch && typeof onCategoriesFound === 'function') {
-        try { onCategoriesFound(tokenMatch) } catch (err) { console.warn('onCategoriesFound failed', err) }
-      }
-    } catch (e) {
-      console.warn('Category token extraction failed', e)
+  try {
+    const tokenMatch = extractCategoriesFromQuery(value);
+    if (tokenMatch && typeof onCategoriesFound === 'function') {
+      try { onCategoriesFound(tokenMatch); } catch (err) { console.warn('onCategoriesFound failed', err); }
+      return
     }
+  } catch (e) {
+    console.warn('Category token extraction failed', e);
+  }
 
-    const results = await sendDataFromSearchBar(value, selectedDate);
-    if (typeof onSearchResults === 'function') {
-      try { onSearchResults(results) } catch (err) { console.warn('onSearchResults handler failed', err) }
-    }
+  const results = await sendDataFromSearchBar(value, selectedDate, false);
+  if (typeof onSearchResults === 'function') {
+    try { onSearchResults(results); } catch (err) { console.warn('onSearchResults handler failed', err); }
   }
 }
 
@@ -170,9 +176,12 @@ type Props = {
 
 export default function SearchBar({ onDateChange, onCategoriesFound, onSearchResults }: Props) {
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(dayjs());
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [searching, setSearching] = useState(false);
 
   // Avoid 
   const didMountRef = React.useRef(false)
+
   useEffect(() => {
     if (!didMountRef.current) {
       didMountRef.current = true
@@ -182,6 +191,30 @@ export default function SearchBar({ onDateChange, onCategoriesFound, onSearchRes
       try { onDateChange(selectedDate) } catch (e) { console.warn('onDateChange handler failed', e) }
     }
   }, [selectedDate, onDateChange]);
+
+  // AI Click Trigger
+  const onGeminiActivate = async () => {
+    if (searching) return;
+    const q = String(inputRef.current?.value ?? '').trim();
+    if (!q) return;
+    // if query contains #tags, treat as category search — notify parent and do not run AI
+    const cats = extractCategoriesFromQuery(q)
+    if (cats && typeof onCategoriesFound === 'function') {
+      try { onCategoriesFound(cats) } catch (err) { console.warn('onCategoriesFound failed', err) }
+      return
+    }
+    setSearching(true);
+    try {
+      const results = await sendDataFromSearchBar(q, selectedDate, true);
+      if (typeof onSearchResults === 'function') {
+        try { onSearchResults(results); } catch (err) { console.warn('onSearchResults handler failed', err); }
+      }
+    } catch (err) {
+      console.error('AI search failed', err);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   
   return (
@@ -196,7 +229,9 @@ export default function SearchBar({ onDateChange, onCategoriesFound, onSearchRes
           >
             ANTEATER EVENTS
                   </Typography>
-                    <BasicDatePicker value={selectedDate} onChange={(d) => setSelectedDate(d)} />
+                    <Box sx={{ mr: { xs: 1, sm: 2, md: 3 }, display: 'flex', alignItems: 'center' }}>
+                      <BasicDatePicker value={selectedDate} onChange={(d) => setSelectedDate(d)} />
+                    </Box>
           <Search>
             <SearchIconWrapper>
               <SearchIcon />
@@ -204,10 +239,22 @@ export default function SearchBar({ onDateChange, onCategoriesFound, onSearchRes
             <StyledInputBase
                 placeholder="Search..."
                     inputProps={{ 'aria-label': 'search' }}
+                    inputRef={inputRef}
                     onKeyDown={(e) => { void handleSearchKey(e, selectedDate, onCategoriesFound, onSearchResults) }}
             />
+            <RightIconWrapper
+              role="button"
+              tabIndex={0}
+              aria-label="AI search"
+              onClick={() => { void onGeminiActivate(); }}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); void onGeminiActivate(); } }}
+            >
+              {searching ? <CircularProgress size={18} color="inherit" /> : <RiGeminiFill size={18} />}
+            </RightIconWrapper>
           </Search>
+          
         </Toolbar>
+        
       </AppBar>
     </Box>
   );

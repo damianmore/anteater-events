@@ -26,7 +26,6 @@ function App() {
 
   // Filters
   const [day, setDay] = useState<string>(() => new Date().toISOString().slice(0, 10))
-  const [categories, setCategories] = useState<string[] | 'all'>('all')
 
   // Create modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -284,8 +283,8 @@ function App() {
 
       
       const reloadDay = (respData && respData.feature && respData.feature.properties && respData.feature.properties.day) || data.day || day
-      console.log('Reloading events for day:', reloadDay)
-      await loadEvents(reloadDay, categories, { fit: true })
+  console.log('Reloading events for day:', reloadDay)
+  await loadEvents(reloadDay, 'all', { fit: true })
       
     } catch (err) {
       console.error('Failed to POST event, falling back to local marker', err)
@@ -296,9 +295,9 @@ function App() {
       } else {
         setSnackbar({ open: true, message: 'Failed to save event', severity: 'error' })
       }
-      createMarker(map, loc.lng, loc.lat, data)
-      // Still refresh list so we remain consistent
-      await loadEvents(data.day || day, categories, { fit: true })
+  createMarker(map, loc.lng, loc.lat, data)
+  // Still refresh list so we remain consistent
+  await loadEvents(data.day || day, 'all', { fit: true })
     } finally {
       setSelectedLocation(null)
     }
@@ -323,7 +322,7 @@ function App() {
 
     map.on('load', async () => {
       // initial load: keep demo markers if server returns none
-      await loadEvents(day, categories, { fit: true, keepExistingOnEmpty: true })
+      await loadEvents(day, 'all', { fit: true, keepExistingOnEmpty: true })
       await loadUpcoming()
 
       try {
@@ -352,15 +351,9 @@ function App() {
           const isoDay = d.format ? d.format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
           setDay(isoDay)
           // reload events for the selected day; when user changes date we want to show only that day's events
-          loadEvents(isoDay, categories, { fit: true, keepExistingOnEmpty: false })
+          loadEvents(isoDay, 'all', { fit: true, keepExistingOnEmpty: false })
         }}
-        onCategoriesFound={(cats) => {
-          const newCats: string[] | 'all' = (cats && cats.length) ? cats : 'all'
-          console.log('App received categories from SearchBar:', newCats)
-          setCategories(newCats)
-          // reload events for current day using the new categories
-          loadEvents(day, newCats, { fit: true, keepExistingOnEmpty: false })
-        }}
+        
         onSearchResults={(results) => {
           const map = mapRef.current
           if (!map) return
