@@ -1,11 +1,12 @@
 #  AnteaterEvents
+# Check it out here: https://anteater-events.onrender.com/
 
 ##  Inspiration
 UCI students have a reputation for being antisocial and not going out much. While that might be true for some of us introverts, a big part of the issue is simply **not knowing what’s happening on campus**.  
 
 Existing tools like Zotspot make it inconvenient to find events — the search features are limited, and unless you already know the campus well, it can be confusing to locate events. On top of that, club events are often scattered across various social media pages.  
 
-We figured it should be **way easier** than that. So, we decided to bring everything together — all in one place.
+We figured it should be **way easier** than that. So, we decided to bring everything together in one place.
 
 ---
 
@@ -17,7 +18,6 @@ We figured it should be **way easier** than that. So, we decided to bring everyt
 - Plan ahead by browsing events a week or month in advance.  
 - Use **Gemini AI search** to find events tailored to your exact interests.  
 
-Simple, fast, and all in one place. 🗺️
 
 ---
 
@@ -53,7 +53,7 @@ We faced quite a few hurdles along the way:
 - Designing apps with **clear functional requirements**.  
 - Configuring databases and integrating external APIs and libraries.  
 - Deploying full-stack apps across both frontend and backend environments.  
-- Creating a **user-centered interface** that prioritizes ease of navigation and experience.
+- Creating a **user friendly interface** that prioritizes ease of navigation and experience.
 
 ---
 
@@ -62,7 +62,6 @@ If AnteaterEvents is well-received, we plan to:
 - Expand it for **wider public use** beyond UCI.  
 - Add **real-time event updates** and **user authentication**.  
 - Integrate with **UCI club systems** and possibly even student calendars.  
-
 
 
 
