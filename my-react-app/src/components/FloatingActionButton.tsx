@@ -11,7 +11,8 @@ export default function FloatingActionButtons({ onCreate }: Props) {
   return (
     <div className="fab-container">
       <Box sx={{ '& > :not(style)': { m: 1 } }}>
-        <Fab color="primary" aria-label="add" onClick={onCreate}>
+        <Fab color="primary" aria-label="add" 
+        onClick={onCreate}>
           <AddIcon />
         </Fab>
       </Box>

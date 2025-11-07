@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { styled, alpha, useTheme } from '@mui/material/styles';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
@@ -9,6 +9,11 @@ import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { Tooltip as ReactTooltip } from 'react-tooltip'
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -174,34 +179,26 @@ async function handleSearchKey(
 
 
 type Props = {
+  /** optional controlled value (Dayjs) - when provided SearchBar will sync to this date */
+  value?: Dayjs | null
   onDateChange?: (d: Dayjs) => void
   onCategoriesFound?: (cats: string[]) => void
   onSearchResults?: (results: Array<Record<string, unknown>> | null) => void
 }
 
 
-export default function SearchBar({ onDateChange, onCategoriesFound, onSearchResults }: Props) {
-  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(dayjs());
+export default function SearchBar({ value, onDateChange, onCategoriesFound, onSearchResults }: Props) {
+  // Make SearchBar controlled: use parent `value` when provided, otherwise fallback to today
+  const currentDate: Dayjs = (typeof value === 'undefined' || value === null) ? dayjs() : value
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [searching, setSearching] = useState(false);
+  const [helpAnchor, setHelpAnchor] = useState<HTMLElement | null>(null);
 
   // responsive/mobile date-picker support
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [mobilePickerOpen, setMobilePickerOpen] = useState(false);
-
-  // Avoid
-  const didMountRef = React.useRef(false)
-
-  useEffect(() => {
-    if (!didMountRef.current) {
-      didMountRef.current = true
-      return
-    }
-    if (selectedDate && typeof onDateChange === 'function') {
-      try { onDateChange(selectedDate) } catch (e) { console.warn('onDateChange handler failed', e) }
-    }
-  }, [selectedDate, onDateChange]);
+  // Avoid keeping internal date state — parent drives the date via `value` + `onDateChange`.
 
   // AI Click Trigger
   const onGeminiActivate = async () => {
@@ -216,7 +213,7 @@ export default function SearchBar({ onDateChange, onCategoriesFound, onSearchRes
     }
     setSearching(true);
     try {
-      const results = await sendDataFromSearchBar(q, selectedDate, true);
+      const results = await sendDataFromSearchBar(q, currentDate, true);
       if (typeof onSearchResults === 'function') {
         try { onSearchResults(results); } catch (err) { console.warn('onSearchResults handler failed', err); }
       }
@@ -255,26 +252,32 @@ export default function SearchBar({ onDateChange, onCategoriesFound, onSearchRes
                 <DatePicker
                   open={mobilePickerOpen}
                   onClose={() => setMobilePickerOpen(false)}
-                  value={selectedDate}
-                  onChange={(d) => setSelectedDate(d)}
+                  value={currentDate}
+                  onChange={(d) => { if (typeof onDateChange === 'function' && d) { try { onDateChange(d) } catch (e) { console.warn('onDateChange failed', e) } } }}
                   slotProps={{ textField: { sx: { display: 'none' } } }}
                 />
               </LocalizationProvider>
             </>
           ) : (
             <Box sx={{ mr: { xs: 1, sm: 2, md: 3 }, display: { xs: 'none', sm: 'flex' }, alignItems: 'center' }}>
-              <BasicDatePicker value={selectedDate} onChange={(d) => setSelectedDate(d)} />
+              <BasicDatePicker value={currentDate} onChange={(d) => { if (typeof onDateChange === 'function' && d) { try { onDateChange(d) } catch (e) { console.warn('onDateChange failed', e) } } }} />
             </Box>
           )}
+          <ReactTooltip id='my-tooltip' anchorSelect='.info' place='bottom'>
+          <p>Press Enter for Normal Search</p>
+            <p>Click AI Logo for AI Search</p>
+            <p>Put # in front of the input to search categories</p>
+          </ReactTooltip>
+          <InfoOutlinedIcon className='info' sx={{ mr: 1 }} />
           <Search>
             <SearchIconWrapper>
               <SearchIcon />
             </SearchIconWrapper>
             <StyledInputBase
-                placeholder="Search..."
+                placeholder="Search Title/Description"
                     inputProps={{ 'aria-label': 'search' }}
                     inputRef={inputRef}
-                    onKeyDown={(e) => { void handleSearchKey(e, selectedDate, onCategoriesFound, onSearchResults) }}
+                    onKeyDown={(e) => { void handleSearchKey(e, currentDate, onCategoriesFound, onSearchResults) }}
             />
             <RightIconWrapper
               role="button"

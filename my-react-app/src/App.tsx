@@ -1,5 +1,12 @@
 import { useRef, useEffect, useState } from 'react'
+import dayjs from 'dayjs'
 import FloatingActionButtons from './components/FloatingActionButton'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import Button from '@mui/material/Button'
+import Typography from '@mui/material/Typography'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 
@@ -30,6 +37,8 @@ function App() {
 
   // Create modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  // Confirmation dialog before starting map-click create flow
+  const [isCreateConfirmOpen, setIsCreateConfirmOpen] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<{ lng: number; lat: number } | null>(null)
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity?: 'success'|'info'|'warning'|'error' }>({ open: false, message: '', severity: 'info' })
  
@@ -146,6 +155,12 @@ function App() {
 
   // -------- Create flow --------
   const handleCreate = () => {
+    // show confirmation dialog explaining crosshair/select behavior
+    setIsCreateConfirmOpen(true)
+  }
+
+  const handleConfirmCreate = () => {
+    setIsCreateConfirmOpen(false)
     const map = mapRef.current
     if (!map) {
       setSelectedLocation(null)
@@ -156,6 +171,10 @@ function App() {
       setSelectedLocation({ lng, lat })
       setIsCreateOpen(true)
     })
+  }
+
+  const handleCancelCreate = () => {
+    setIsCreateConfirmOpen(false)
   }
 
   //Handle create form submission
@@ -283,9 +302,11 @@ function App() {
       }
 
       
-      const reloadDay = (respData && respData.feature && respData.feature.properties && respData.feature.properties.day) || data.day || day
-      console.log('Reloading events for day:', reloadDay)
-      await loadEvents(reloadDay, categories, { fit: true })
+  const reloadDay = (respData && respData.feature && respData.feature.properties && respData.feature.properties.day) || data.day || day
+  console.log('Reloading events for day:', reloadDay)
+  // keep App state in sync so children (SearchBar) receive updated date
+  setDay(reloadDay)
+  await loadEvents(reloadDay, categories, { fit: true })
 
       
     } catch (err) {
@@ -349,6 +370,7 @@ function App() {
   return (
     <>
       <SearchBar
+        value={day ? dayjs(day) : dayjs()}
         onDateChange={(d) => {
           const isoDay = d.format ? d.format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
           setDay(isoDay)
@@ -385,6 +407,18 @@ function App() {
           fitMapToMarkers(dbMarkersRef.current)
         }}
       />
+      <Dialog open={isCreateConfirmOpen} onClose={handleCancelCreate}>
+        <DialogTitle>Creating event — Selecting Location</DialogTitle>
+        <DialogContent>
+          <Typography>
+            When you confirm, the map cursor will change to a crosshair. Click anywhere on the map to choose the event location. After selecting, you'll be shown the create form.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelCreate}>Cancel</Button>
+          <Button onClick={handleConfirmCreate} variant="contained" color="primary">Confirm</Button>
+        </DialogActions>
+      </Dialog>
       <div id="map-container" ref={mapContainerRef}>
         <FloatingActionButtons onCreate={handleCreate} />
       </div>

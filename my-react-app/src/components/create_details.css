@@ -38,7 +38,7 @@
 .title {
   color: #eee;
   font-family: sans-serif;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   margin: 0 0 12px 0;
 }
@@ -128,4 +128,21 @@
 
 .submit:active {
   background-color: #06b;
+}
+
+.input-error {
+  color: #ff6b6b;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.input-help {
+  color: #bdbdd0;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
